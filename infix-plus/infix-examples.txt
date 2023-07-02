@@ -1,4 +1,5 @@
-10 + 10 / 10 * 100 
+# testing a normal expression and operator precedence
+10 + 10 / 10 * 100 - 10
 # testing the lexing for - works as intended
 10 - 10 -- 10 ------(-1.0) --- 3
 # test nesting brackets right
@@ -7,5 +8,10 @@
 (((10+10)+10)+10)
 # test empty expression
 (((((())))))
+# test assignments
+a = 10
+b = 20
+c = 30
+d = e = f = 50
 # test line breaks in expressions
-a + b
+a + a # yo sup

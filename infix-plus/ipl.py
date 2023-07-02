@@ -20,6 +20,7 @@ class IPLexToken(IntEnum):
     NEW_LINE = auto()
     ASSIGN = auto()
     TOKEN = auto()
+    EOF = auto()
 
 # you can write a bespoke function which takes the content of the token
 # and emits the correct thing
@@ -38,6 +39,9 @@ op_codes = {
 
 def push_operator(obj : AbstractLexer, next_char : str):
     obj.tokens.append( (op_codes[next_char], next_char) )
+
+def push_eof(obj : AbstractLexer, next_char : str):
+    obj.tokens.append( (IPLexToken.EOF, next_char) )
 
 def push_number(obj : AbstractLexer, next_char : str):
     obj.tokens.append( (IPLexToken.NUMBER, obj.token) )
@@ -76,6 +80,7 @@ transitions = {
             # start should be different to what follows operators
             # expect-expr should be a state, neutral renamed to start
             "start": [
+                (None, 'start', push_eof),
                 (r'[\t ]','start', ()),
                 (r'[\n\r]','start', push_operator),
                 (r'\(','expect-expr', push_operator),
@@ -87,7 +92,7 @@ transitions = {
                 (r'#','comment',())
             ],
             "number": [
-                (None, 'start', number_space),
+                (None, 'start', number_space + (push_eof,)),
                 (r'[\n\r]','start', number_tuple),
                 (r'[ \t]','expect-operator', number_space),
                 (r'[0-9]', 'number', AbstractLexer.accumulate),
@@ -98,7 +103,7 @@ transitions = {
                 (r'#','comment', number_space)
             ],
             'number-dot': [
-                (None, 'start', number_space),
+                (None, 'start', number_space + (push_eof,)),
                 (r'[\n\r]','start', number_tuple),
                 (r'[ \t]','expect-operator', number_space),
                 (r'[0-9]', 'number-dot', AbstractLexer.accumulate),
@@ -107,7 +112,7 @@ transitions = {
                 (r'-','minus', number_to_minus),
                 (r'#','comment',number_space)
             ],
-            # always follows numbers, tokens and close brackets
+            # follows operators e.g. + = - * (
             'expect-expr': [
                 (r'[\t ]','expect-expr', ()),
                 # newline is invalid
@@ -116,9 +121,9 @@ transitions = {
                 (r'[0-9]','number', AbstractLexer.accumulate),
                 (r'\.','number-dot', AbstractLexer.accumulate),
                 (r'-','minus', AbstractLexer.accumulate),
-                (r'[A-Z]|[a-z]|_','token', AbstractLexer.accumulate),
-                (r'#', 'comment', ())
+                (r'[A-Z]|[a-z]|_','token', AbstractLexer.accumulate)
             ],
+            # always follows numbers, tokens and close brackets
             'expect-operator': [
                 # perhaps check if brackets have been closed correctly - neutral might be wrong state to go to
                 (r'[\n\r]','start', push_operator),
@@ -139,7 +144,7 @@ transitions = {
                 # comment after minus will lead to invalid code, therefore invalid
             ],
             'comment': [
-                (None, 'start', ()),
+                (None, 'start', push_eof),
                 (r'[\n\r]','start',push_operator),
                 (r'(?![\n\r])','comment',())
             ],
