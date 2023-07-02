@@ -1,0 +1,7 @@
+10 + 10 / 10 * 100 
+# this should evaluate fine, as - is a unary symbol
+10 - 10 -- 10 -------(-1.0) --- 3
+# test nesting brackets right
+(10 + (10 + (10 + 10)))
+# test nesting left
+(((10+10)+10)+10)

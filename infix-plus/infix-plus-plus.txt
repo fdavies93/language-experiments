@@ -1,0 +1,38 @@
+# minimal implementation of vars
+# = is always an assignment operator
+# == is avoided where possible in favor of branching
+a = 5
+b = 10
+(a + b) * 5
+# minimal implementation - don't lex anything after a #, move on
+
+# function implementations: simple & complex
+fn square x = x * x
+a = square 10
+print a
+fn exp x n = bn n: 0 -> 1 | 1 -> x | n -> x * exp (n - 1)
+# brackets can be optional! but recommended for function calls including
+# expressions
+exp 5
+
+# equivalent to
+# if e == 0 return 1
+# elif e == 1 return x
+# else return x * exp(e - 1)
+exp 2 3 # should return 8
+
+# branch statement replaces
+
+fn echo = str(in())
+
+# OCAML
+let rec exp x = function
+  | 0 -> 1
+  | 1 -> x
+  | n -> x * exp x (n - 1)
+
+# Haskell 
+exp x = case
+  0 -> 1
+  1 -> x
+  n -> x * exp x (n - 1)

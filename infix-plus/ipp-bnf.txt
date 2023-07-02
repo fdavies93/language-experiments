@@ -1,0 +1,38 @@
+<program> := <expression> | <new_line> | <expression> <new_line> <program>
+
+<expression> := <number>
+              | <token>
+              | <assignment>
+              | <binary_expr>
+              | <unary_expr>
+              | <bracket_expr>
+
+<assignment> := <token> <assign> <expression>
+<binary_expr> := <expression> <binary_op> <expression>
+<unary_expr> := <unary_op> <expression>
+<bracket_expr> := <open_bracket> <expression> <close_bracket>
+
+<binary_op> := <plus> | <multiply> | <divide>
+<unary_op> := <minus>
+
+# non-terminal version
+
+<program> := <expression> | '\n' | <expression> '\n' <program>
+
+<expression> := <number>
+              | <token>
+              | <assignment>
+              | <binary_expr>
+              | <unary_expr>
+              | <bracket_expr>
+
+<assignment> := <token> '=' <expression>
+<binary_expr> := <expression> <binary_op> <expression>
+<unary_expr> := <unary_op> <expression>
+
+# token not included for brevity: ([a-z] | [A-Z] | _)+
+# digit = [0-9]
+<bracket_expr> := '(' <expression> ')'
+<binary_op> := '+' | '*' | '/'
+<unary_op> := '-'
+<number> := <digit> | <number> <digit> | <number> '.' | '.' <number>
