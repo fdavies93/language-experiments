@@ -57,7 +57,7 @@ class AbstractLexer():
                     expr[2](self,next_char)
 
         if matches == 0:
-            raise ValueError(f"No valid matches for next character in state {self.state}.")
+            raise ValueError(f"No valid matches for next character in state {self.state}. Next character is \"{next_char}\"")
     
     def graphviz(self, outPath : str):
         lines = [
@@ -89,5 +89,7 @@ class AbstractLexer():
                     fn(self,"")
             else:
                 possible_eof[2](self,"")
+        else:
+            raise ValueError(f"Cannot lex EOF from state {self.state}")
         
         return self.tokens

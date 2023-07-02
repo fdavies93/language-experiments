@@ -1,12 +1,16 @@
 # IPL means Infix Plus Lexer
 
 from enum import IntEnum, auto
-from lexer import AbstractLexer, LexTransition, LexTransitionFn
 from argparse import ArgumentParser
-from sys import argv
+import sys
+
+sys.path.insert(1,"../abstract-lexer")
+
+from lexer import AbstractLexer, LexTransition, LexTransitionFn
 
 class IPLexToken(IntEnum):
     MINUS = auto()
+    NEGATE = auto()
     OPEN_BRACKET = auto()
     CLOSE_BRACKET = auto()
     PLUS = auto()
@@ -45,35 +49,37 @@ def push_minus(obj : AbstractLexer, next_char : str):
     prev_token = None
     if len(obj.tokens) > 0:
         prev_token = obj.tokens[-1]
+    is_neg = (len(obj.token) % 2) != 0
+    # two dimensions: should it be binary or unary operator?
+    # if binary, should it evaluate to + or -?
+    # if unary, should it evaluate to NEG or nothing?
     if prev_token != None and prev_token[0] in {IPLexToken.NUMBER, IPLexToken.CLOSE_BRACKET, IPLexToken.TOKEN}:
+        if is_neg:
+            obj.tokens.append((IPLexToken.MINUS, '-'))
+            return
         obj.tokens.append((IPLexToken.PLUS, '+'))
-    if (len(obj.token) % 2) != 0:
-        obj.tokens.append((IPLexToken.MINUS, '-'))
+    elif is_neg:
+        obj.tokens.append((IPLexToken.NEGATE, '-'))
 
 number_space = ( push_number, AbstractLexer.reset_token )
 number_to_minus = (push_number, AbstractLexer.reset_token, AbstractLexer.accumulate)
 number_tuple = ( push_number, push_operator, AbstractLexer.reset_token )
 
 exit_minus = (push_minus, AbstractLexer.reset_token, AbstractLexer.accumulate)
+exit_minus_bracket = (push_minus, AbstractLexer.reset_token, push_operator)
 
 token_space = ( push_token, AbstractLexer.reset_token )
 token_to_minus = ( push_token, AbstractLexer.reset_token, AbstractLexer.accumulate)
 token_tuple = ( push_token, push_operator, AbstractLexer.reset_token )
 
 transitions = {
-            # all we care about is:
-            # do we push the current accumulator? as what?
-            # do we push the next token? as what?
-            
-            # change this so that we supply a list of atomic functions
-            # which are executed on a given transition, rather than 
-            # using predefined behaviours
-            # PUSH should be append token, append accumulator, reset accumulator
-            # ACCUMULATE should be append token to accumulator / tape
-            "neutral": [
-                (r'[\t ]','neutral', ()),
-                (r'[\n\r]','neutral', push_operator), # i.e. do nothing
-                (r'\(','neutral', push_operator), 
+            # start should be different to what follows operators
+            # expect-expr should be a state, neutral renamed to start
+            "start": [
+                (r'[\t ]','start', ()),
+                (r'[\n\r]','start', push_operator),
+                (r'\(','expect-expr', push_operator),
+                # (r'\)','expect-operator',push_operator),
                 (r'[0-9]','number', AbstractLexer.accumulate),
                 (r'\.','number-dot', AbstractLexer.accumulate),
                 (r'-','minus', AbstractLexer.accumulate),
@@ -81,31 +87,43 @@ transitions = {
                 (r'#','comment',())
             ],
             "number": [
-                (None, 'neutral', number_space),
-                (r'[\n\r]','neutral', number_tuple),
+                (None, 'start', number_space),
+                (r'[\n\r]','start', number_tuple),
                 (r'[ \t]','expect-operator', number_space),
                 (r'[0-9]', 'number', AbstractLexer.accumulate),
                 (r'\)', 'expect-operator', number_tuple),
-                (r'[+*(/=]','neutral', number_tuple),
+                (r'[+*(/=]','expect-expr', number_tuple),
                 (r'\.','number-dot', AbstractLexer.accumulate),
                 (r'-','minus', number_to_minus),
                 (r'#','comment', number_space)
             ],
             'number-dot': [
-                (None, 'neutral', number_space),
-                (r'[\n\r]','neutral', number_tuple),
+                (None, 'start', number_space),
+                (r'[\n\r]','start', number_tuple),
                 (r'[ \t]','expect-operator', number_space),
                 (r'[0-9]', 'number-dot', AbstractLexer.accumulate),
                 (r'\)', 'expect-operator', number_tuple),
-                (r'[+*(/=]','neutral', number_tuple),
+                (r'[+*(/=]','expect-expr', number_tuple),
                 (r'-','minus', number_to_minus),
                 (r'#','comment',number_space)
             ],
+            # always follows numbers, tokens and close brackets
+            'expect-expr': [
+                (r'[\t ]','expect-expr', ()),
+                # newline is invalid
+                (r'\(','expect-expr', push_operator),
+                (r'\)','expect-operator',push_operator),
+                (r'[0-9]','number', AbstractLexer.accumulate),
+                (r'\.','number-dot', AbstractLexer.accumulate),
+                (r'-','minus', AbstractLexer.accumulate),
+                (r'[A-Z]|[a-z]|_','token', AbstractLexer.accumulate),
+                (r'#', 'comment', ())
+            ],
             'expect-operator': [
                 # perhaps check if brackets have been closed correctly - neutral might be wrong state to go to
-                (r'[\n\r]','neutral', push_operator),
+                (r'[\n\r]','start', push_operator),
                 (r'[ \t]','expect-operator', ()),
-                (r'[+*\(/=]','neutral', push_operator),
+                (r'[+*\(/=]','expect-expr', push_operator),
                 (r'-','minus', AbstractLexer.accumulate),
                 (r'\)','expect-operator', push_operator),
                 (r'#', 'comment', ())
@@ -114,22 +132,23 @@ transitions = {
                 # newline in the middle of a minus expression is INVALID
                 (r'[ \t]','minus', ()), # i.e. do nothing
                 (r'-','minus', AbstractLexer.accumulate),
+                (r'\(','expect-expr', exit_minus_bracket), 
                 (r'\.','number-dot', exit_minus),
                 (r'[0-9]', 'number', exit_minus),
                 (r'[A-Z]|[a-z]|_','token', exit_minus)
                 # comment after minus will lead to invalid code, therefore invalid
             ],
             'comment': [
-                (None, 'neutral', ()),
-                (r'[\n\r]','neutral',push_operator),
+                (None, 'start', ()),
+                (r'[\n\r]','start',push_operator),
                 (r'(?![\n\r])','comment',())
             ],
             'token': [
-                (None, 'neutral', token_space),
-                (r'[\n\r]','neutral', token_tuple),
+                (None, 'start', token_space),
+                (r'[\n\r]','start', token_tuple),
                 (r'[ \t]','expect-operator', token_space),
                 (r'\)', 'expect-operator', token_tuple),
-                (r'[+*(/=]','neutral', token_tuple),
+                (r'[+*(/=]','expect-expr', token_tuple),
                 (r'-','minus', token_to_minus),
                 (r'[A-Z]|[a-z]|_','token', AbstractLexer.accumulate),
                 (r'#','comment', token_space)
@@ -140,15 +159,15 @@ transitions = {
 # just a convenient wrapper over the AbstractLexer
 class InfixPlusLexer(AbstractLexer):
     def __init__(self):
-        super().__init__(transitions,"neutral")
+        super().__init__(transitions,"start")
 
 if __name__ == "__main__":
-    luthor = AbstractLexer(transitions, "neutral")
+    luthor = AbstractLexer(transitions, "start")
 
     parser = ArgumentParser(prog="Infix Plus Lexer")
     parser.add_argument('-i', '--input',action='store')
 
-    args = parser.parse_args(argv[1:])
+    args = parser.parse_args(sys.argv[1:])
 
     if args.input:
         with open(args.input,'r') as f:

@@ -1,62 +1,22 @@
-class IPLexToken(IntEnum):
-    MINUS = auto()
-    OPEN_BRACKET = auto()
-    CLOSE_BRACKET = auto()
-    PLUS = auto()
-    MULTIPLY = auto()
-    DIVIDE = auto()
-    NUMBER = auto()
-    NEW_LINE = auto()
-    ASSIGN = auto()
-    TOKEN = auto()
-
-Program <- (Expression '\n'?)+
-Expression <- Assignment / Bracket_Expr / Unary_Expr / Binary_Expr / Number / Token / '\n'
-Assignment <- Token '=' Expression
-Binary_Expr <- Expression Binary_Op Expression
-Unary_Expr <- Unary_Op Expression
-Bracket_Expr <- '(' Expression ')'
-
-Binary_Op <- '/' / '*' / '+' 
-Unary_Op <- '-'
-
-Number <- [0-9]*.?[0.9]*
-Token <- [A-Za-z_]+
-
 # In pest.rs format
-
-Program <- (Expression '\n'?)+
-Expression <- Assignment / Bracket_Expr / Unary_Expr / Binary_Expr / Number / Token / '\n'
-Assignment <- Token '=' Expression
-Binary_Expr <- Expression Binary_Op Expression
-Unary_Expr <- Unary_Op Expression
-Bracket_Expr <- '(' Expression ')'
-
-Binary_Op <- '/' / '*' / '+' 
-Unary_Op <- '-'
-
-Number = {'0'..'9'+ ~ ("." ~ '0'..'9'+)?}
-token = {('A'..'Z' | 'a'..'z' | '_')+}
-
-# This confirms that binary expressions are a real problem for left-recursion
 
 # TODO:
 # - make a binary minus operator and distinguish in lexer
 #   (this fixes precedence in expressions like 10 - 10 * 5)
 #   still include unary operator for bracket expressions etc
-# - HANDWRITE RECURSIVE DESCENT PARSER FROM GRAMMAR
+# - HANDWRITE RECURSIVE DESCENT PARSER FROM GRAMMAR (?)
 
 program = {expr ~ ("\n" ~ expr)*}
 expr = { assignment | add }
 term = { number | token | bracket_expr | unary_expr }
 assignment = { token ~ "=" ~ expr }
 unary_expr = {unary_op ~ expr}
-add = {mul ~ ("+" ~ add)?}
+add = {mul ~ ("+" | "-" ~ add)?}
 mul = {term ~ (("/" | "*") ~ mul)?}
 bracket_expr = {"(" ~ expr ~ ")"}
 
 binary_op = {"+" | "*" | "/"}
-unary_op = {"-"}
+unary_op = {"NEG"}
 
 number = {'0'..'9'+ ~ ("." ~ '0'..'9'+)?}
 token = {('A'..'Z' | 'a'..'z' | "_")+}

@@ -1,7 +1,11 @@
 10 + 10 / 10 * 100 
-# this should evaluate fine, as - is a unary symbol
-10 - 10 -- 10 -------(-1.0) --- 3
+# testing the lexing for - works as intended
+10 - 10 -- 10 ------(-1.0) --- 3
 # test nesting brackets right
 (10 + (10 + (10 + 10)))
 # test nesting left
 (((10+10)+10)+10)
+# test empty expression
+(((((())))))
+# test line breaks in expressions
+a + b
