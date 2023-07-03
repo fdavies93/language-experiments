@@ -2,6 +2,7 @@ from ipl import InfixPlusLexer, IPLexToken
 from enum import IntEnum, auto
 from argparse import ArgumentParser
 from typing import Iterable
+import json
 import sys
 
 class IPToken(IntEnum):
@@ -36,45 +37,51 @@ class InfixPlusParser():
         for i, token in enumerate(tokens):
             if token[0] in {IPLexToken.EOF, IPLexToken.NEW_LINE}:
                 expr_node = self.parse_expr(tokens[group_start:i])
-                if len(expr_node[1]) > 0:
-                    children.append(expr_node)
+                if len(expr_node[0][1]) > 0:
+                    children.append(expr_node[0])
                     # print(expr_node)
                 group_start = i+1
-        print(children)
+        # print(children)
         return ((IPToken.PROGRAM, children),[])
 
     def parse_expr(self, tokens : TokenList) -> IPTuple:
+        # print(tokens)
+        # if len(tokens) == 0:
+        #     return ((IPToken.EXPR, []),[])
+
         for fn in (self.parse_assignment, self.parse_add):
             try:
                 node = fn(tokens)
-                return ((IPToken.EXPR, node[0]), node[1])
-            except ValueError:
-                pass
-        raise ValueError
+                return ((IPToken.EXPR, [node[0]]), node[1])
+            except ValueError as err:
+                print(err)
+        raise ValueError("No valid expression found.")
         
     def parse_assignment(self, tokens : TokenList) -> IPTuple:
-        if len(tokens) > 2 and tokens[1][0] == IPLexToken.ASSIGN:
-            if not tokens[0][0] == IPLexToken.TOKEN:
-                raise ValueError("Expression looks like an assignment but isn't.")
-            return (IPToken.ASSIGNMENT, self.parse_expr(tokens[2:]), )
-        raise ValueError("Not an assignment.")
-
+        if len(tokens) <= 2 or tokens[1][0] != IPLexToken.ASSIGN:
+            raise ValueError("Not an assignment.")
+        
+        if not tokens[0][0] == IPLexToken.TOKEN:
+            raise ValueError("Expression looks like an assignment but isn't.")
+        
+        return (IPToken.ASSIGNMENT, self.parse_expr(tokens[2:]), )
+    
     def parse_add(self, tokens : TokenList) -> IPTuple:
         children = []
         
-        if len(tokens) == 0:
-            raise ValueError("Invalid add expression.")
+        # if len(tokens) == 0:
+        #     raise ValueError("Invalid add expression: no tokens.")
         left_tokens = self.parse_mul(tokens)
 
         children.append(left_tokens[0])
 
         remaining_tokens = left_tokens[1]
-        if len(remaining_tokens) == 1:
-            raise ValueError("Invalid add expression.")
+        # if len(remaining_tokens) == 1:
+        #     raise ValueError("Invalid add expression.")
         
-        if len(remaining_tokens) > 0:
-            if remaining_tokens[0][0] not in {IPLexToken.PLUS, IPLexToken.MINUS}:
-                raise ValueError("Invalid add expression.")
+        if len(remaining_tokens) > 0 and remaining_tokens[0][0] in {IPLexToken.PLUS, IPLexToken.MULTIPLY}:
+            # if remaining_tokens[0][0] not in {IPLexToken.PLUS, IPLexToken.MINUS}:
+            #     raise ValueError("Invalid add expression.")
             
             children.append(remaining_tokens[0])
 
@@ -89,21 +96,22 @@ class InfixPlusParser():
     def parse_mul(self, tokens : TokenList) -> IPTuple:
         children = []
         
-        if len(tokens) == 0:
-            raise ValueError("Invalid mul expression.")
+        # if len(tokens) == 0:
+        #     raise ValueError("Invalid mul expression: length < 1")
         left_tokens = self.parse_term(tokens)
 
         children.append(left_tokens[0])
 
         remaining_tokens = left_tokens[1]
 
-        if len(remaining_tokens) == 1:
-            raise ValueError("Invalid mul expression.")
+        # if len(remaining_tokens) == 1:
+        #     print(remaining_tokens)
+        #     raise ValueError("Invalid mul expression: dangling operator")
         
-        if len(remaining_tokens > 0):
+        if len(remaining_tokens) > 0 and remaining_tokens[0][0] in {IPLexToken.MULTIPLY, IPLexToken.DIVIDE}:
 
-            if remaining_tokens[0][0] not in {IPLexToken.DIVIDE, IPLexToken.MULTIPLY}:
-                raise ValueError("Invalid mul expression.")
+            # if remaining_tokens[0][0] not in {IPLexToken.DIVIDE, IPLexToken.MULTIPLY}:
+            #     raise ValueError("Invalid mul expression: not a divide or multiply expression")
 
             children.append(remaining_tokens[0])
 
@@ -116,29 +124,37 @@ class InfixPlusParser():
         return ((IPToken.MUL, children), remaining_tokens)
     
     def parse_term(self, tokens : TokenList) -> IPTuple:
-        for lex_type in (IPLexToken.NUMBER, IPLexToken.TOKEN):
-            if tokens[0][0] == lex_type:
-                return ((IPToken.TERM, tokens[0]), tokens[1:])
-        
+        if len(tokens) == 0:
+            return ((IPToken.TERM, []), [])
+
+        first = tokens[0][0]
+
+        if first in {IPLexToken.NUMBER, IPLexToken.TOKEN}:
+            return ((IPToken.TERM, tokens[0]), tokens[1:])
+                
         for fn in (self.bracket_expr, self.unary_expr):
             try:
                 node = fn(tokens)
                 return ((IPToken.TERM, node[0]), node[1])
-            except ValueError:
-                pass
-        raise ValueError("No valid term found.")
+            except ValueError as err:
+                print(tokens)
+                print(err)
+
+        return ((IPToken.TERM, []), [])
+        # raise ValueError("No valid term found.")
 
     def bracket_expr(self, tokens : TokenList) -> IPTuple:
         # check opening bracket
         if not tokens[0][0] == IPLexToken.OPEN_BRACKET or len(tokens) < 2:
-            raise ValueError("Not a bracket expression.")
+            raise ValueError("Not a bracket expression: incorrect brackets.")
         
         expr = self.parse_expr(tokens[1:])
 
         remaining = expr[1]
         
         # check closing bracket
-        if not len(remaining) > 0 or not remaining[0] == IPLexToken.CLOSE_BRACKET:
+        if not len(remaining) > 0 or not remaining[0][0] == IPLexToken.CLOSE_BRACKET:
+            print(remaining)
             raise ValueError("Not a bracket expression.")
 
         children = [IPLexToken.OPEN_BRACKET, expr[0], IPLexToken.CLOSE_BRACKET]
@@ -153,7 +169,7 @@ class InfixPlusParser():
         unary = tokens[0]
         expr = self.parse_expr(tokens[1:])
 
-        children = [expr[0]]
+        children = [unary, expr[0]]
 
         return ((IPToken.UNARY_EXPR, children), expr[1])
 
@@ -174,3 +190,4 @@ if __name__ == "__main__":
             file = f.read()
         tokens = luthor.lex(file)
         ast = kal_el.parse(tokens)
+        print(ast[0][1][8])
