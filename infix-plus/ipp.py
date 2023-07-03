@@ -11,8 +11,11 @@ class IPToken(IntEnum):
     ADD = auto()
     MUL = auto()
     TERM = auto()
+    BRACKET_EXPR = auto()
+    UNARY_EXPR = auto()
 
 IPNode = tuple[IPToken,list["IPNode"]]
+IPTuple = tuple[IPNode,list[IPLexToken]]
 TokenList = Iterable[tuple[IPLexToken, str]]
 
 class InfixPlusParser():
@@ -25,7 +28,7 @@ class InfixPlusParser():
                 return False
         return True
 
-    def parse_program(self, tokens : TokenList) -> IPNode:
+    def parse_program(self, tokens : TokenList) -> IPTuple:
         # needs to be rewritten to correctly consume tokens
         # and nest expressions
         group_start = 0
@@ -38,9 +41,9 @@ class InfixPlusParser():
                     # print(expr_node)
                 group_start = i+1
         print(children)
-        return (IPToken.PROGRAM, children)
+        return ((IPToken.PROGRAM, children),[])
 
-    def parse_expr(self, tokens : TokenList) -> IPNode:
+    def parse_expr(self, tokens : TokenList) -> IPTuple:
         for fn in (self.parse_assignment, self.parse_add):
             try:
                 node = fn(tokens)
@@ -49,14 +52,14 @@ class InfixPlusParser():
                 pass
         raise ValueError
         
-    def parse_assignment(self, tokens : TokenList) -> IPNode:
+    def parse_assignment(self, tokens : TokenList) -> IPTuple:
         if len(tokens) > 2 and tokens[1][0] == IPLexToken.ASSIGN:
             if not tokens[0][0] == IPLexToken.TOKEN:
                 raise ValueError("Expression looks like an assignment but isn't.")
             return (IPToken.ASSIGNMENT, self.parse_expr(tokens[2:]), )
         raise ValueError("Not an assignment.")
 
-    def parse_add(self, tokens : TokenList) -> tuple[IPNode,list[IPLexToken]]:
+    def parse_add(self, tokens : TokenList) -> IPTuple:
         children = []
         
         if len(tokens) == 0:
@@ -83,7 +86,7 @@ class InfixPlusParser():
 
         return ((IPToken.ADD, children), remaining_tokens)
     
-    def parse_mul(self, tokens : TokenList) -> tuple[IPNode,list[IPLexToken]]:
+    def parse_mul(self, tokens : TokenList) -> IPTuple:
         children = []
         
         if len(tokens) == 0:
@@ -112,7 +115,7 @@ class InfixPlusParser():
 
         return ((IPToken.MUL, children), remaining_tokens)
     
-    def parse_term(self, tokens : TokenList) -> tuple[IPNode, list[IPLexToken]]:
+    def parse_term(self, tokens : TokenList) -> IPTuple:
         for lex_type in (IPLexToken.NUMBER, IPLexToken.TOKEN):
             if tokens[0][0] == lex_type:
                 return ((IPToken.TERM, tokens[0]), tokens[1:])
@@ -125,17 +128,34 @@ class InfixPlusParser():
                 pass
         raise ValueError("No valid term found.")
 
-    def bracket_expr(self, tokens : TokenList):
+    def bracket_expr(self, tokens : TokenList) -> IPTuple:
+        # check opening bracket
         if not tokens[0][0] == IPLexToken.OPEN_BRACKET or len(tokens) < 2:
             raise ValueError("Not a bracket expression.")
         
         expr = self.parse_expr(tokens[1:])
 
-        if not len(expr[1]) > 0 or :
+        remaining = expr[1]
+        
+        # check closing bracket
+        if not len(remaining) > 0 or not remaining[0] == IPLexToken.CLOSE_BRACKET:
+            raise ValueError("Not a bracket expression.")
 
+        children = [IPLexToken.OPEN_BRACKET, expr[0], IPLexToken.CLOSE_BRACKET]
 
-    def unary_expr(self, tokens : TokenList):
-        pass
+        return ((IPToken.BRACKET_EXPR, children),remaining[1:])
+
+    def unary_expr(self, tokens : TokenList) -> IPTuple:
+        # using set to allow for adding more unaries later
+        if len(tokens) < 2 or not tokens[0][0] in {IPLexToken.NEGATE}:
+            raise ValueError("Invalid unary expression.")
+        
+        unary = tokens[0]
+        expr = self.parse_expr(tokens[1:])
+
+        children = [expr[0]]
+
+        return ((IPToken.UNARY_EXPR, children), expr[1])
 
     def parse(self, tokens):
         return self.parse_program(tokens)
