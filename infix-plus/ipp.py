@@ -15,6 +15,7 @@ class IPToken(IntEnum):
     TERM = auto()
     BRACKET_EXPR = auto()
     UNARY_EXPR = auto()
+    NULL = auto()
 
 tokenMap = {
     IPToken.PROGRAM: "PROGRAM",
@@ -24,7 +25,8 @@ tokenMap = {
     IPToken.MUL: "MUL",
     IPToken.TERM: "TERM",
     IPToken.BRACKET_EXPR: "BRACKET",
-    IPToken.UNARY_EXPR: "UNARY"
+    IPToken.UNARY_EXPR: "UNARY",
+    IPToken.NULL: "NULL"
 }
 
 IPNode = tuple[IPToken,list["IPNode"]]
@@ -58,8 +60,8 @@ class InfixPlusParser():
 
     def parse_expr(self, tokens : TokenList) -> IPTuple:
         # print(tokens)
-        if len(tokens) == 0:
-            return ((IPToken.EXPR, []),[])
+        # if len(tokens) == 0:
+        #     return ((IPToken.EXPR, []),[])
 
         for fn in (self.parse_assignment, self.parse_add):
             try:
@@ -147,7 +149,7 @@ class InfixPlusParser():
     def parse_term(self, tokens : TokenList) -> IPTuple:
         if len(tokens) == 0:
             print("Token list is empty.")
-            return ((IPToken.TERM, []), [])
+            return ((IPToken.TERM, [(IPToken.NULL, "")]), [])
 
         first = tokens[0][0]
 
@@ -162,7 +164,7 @@ class InfixPlusParser():
                 # print(tokens)
                 print(err)
 
-        return ((IPToken.TERM, []), tokens)
+        return ((IPToken.TERM, [(IPToken.NULL, "")]), tokens)
         # raise ValueError("No valid term found.")
 
     def bracket_expr(self, tokens : TokenList) -> IPTuple:

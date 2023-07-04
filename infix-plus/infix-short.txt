@@ -1,4 +1,5 @@
 # testing a normal expression and operator precedence
+((()))
 10 + 10
 10 + 10 / 10 * 100 - 10
 a = -(10 - 10) / 9 * 9 - 10
