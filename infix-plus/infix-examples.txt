@@ -7,7 +7,6 @@
 (10 + (10 + (10 + 10)))
 # test nesting left
 (((10+10)+10)+10)
-# test empty expression
 (((((())))))
 # test assignments
 a = 10
@@ -16,5 +15,6 @@ c = 30
 d = e = f = 50
 # test line breaks in expressions
 a + a # yo sup
+-(10+10)
 
 # [[2, [[4, [[5, [[6, []]]]]]]], []], [[2, [[4, [[5, [[6, [8, "10"]]]], [5, "+"], [4, [[5, [[6, [8, "10"]]]]]]]]]], []]

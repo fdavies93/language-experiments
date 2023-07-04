@@ -7,10 +7,10 @@
 # - HANDWRITE RECURSIVE DESCENT PARSER FROM GRAMMAR (?)
 
 program = {expr ~ ("\n" ~ expr)*}
-expr = { (assignment | add) }
-term = { number | token | bracket_expr | unary_expr }
+expr = { (assignment | add ) }
+term = { number | token | bracket_expr | unary_expr | NULL }
 assignment = { token ~ "=" ~ expr }
-unary_expr = {unary_op ~ expr}
+unary_expr = {unary_op ~ term}
 add = {mul ~ ("+" | "-" ~ add)?}
 mul = {term ~ (("/" | "*") ~ mul)?}
 bracket_expr = {"(" ~ expr ~ ")"}

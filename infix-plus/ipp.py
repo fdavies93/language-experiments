@@ -46,8 +46,8 @@ class InfixPlusParser():
 
     def parse_expr(self, tokens : TokenList) -> IPTuple:
         # print(tokens)
-        # if len(tokens) == 0:
-        #     return ((IPToken.EXPR, []),[])
+        if len(tokens) == 0:
+            return ((IPToken.EXPR, []),[])
 
         for fn in (self.parse_assignment, self.parse_add):
             try:
@@ -55,6 +55,8 @@ class InfixPlusParser():
                 return ((IPToken.EXPR, [node[0]]), node[1])
             except ValueError as err:
                 print(err)
+        
+        # return ((IPToken.EXPR, []), [tokens])
         raise ValueError("No valid expression found.")
         
     def parse_assignment(self, tokens : TokenList) -> IPTuple:
@@ -64,7 +66,11 @@ class InfixPlusParser():
         if not tokens[0][0] == IPLexToken.TOKEN:
             raise ValueError("Expression looks like an assignment but isn't.")
         
-        return (IPToken.ASSIGNMENT, self.parse_expr(tokens[2:]), )
+        children = list(tokens[:2])
+        expr = self.parse_expr(tokens[2:])
+        children.append(expr[0])
+
+        return ((IPToken.ASSIGNMENT, children), expr[1])
     
     def parse_add(self, tokens : TokenList) -> IPTuple:
         children = []
@@ -72,6 +78,7 @@ class InfixPlusParser():
         # if len(tokens) == 0:
         #     raise ValueError("Invalid add expression: no tokens.")
         left_tokens = self.parse_mul(tokens)
+        # print(left_tokens[1])
 
         children.append(left_tokens[0])
 
@@ -103,6 +110,7 @@ class InfixPlusParser():
         children.append(left_tokens[0])
 
         remaining_tokens = left_tokens[1]
+        # print(remaining_tokens)
 
         # if len(remaining_tokens) == 1:
         #     print(remaining_tokens)
@@ -121,26 +129,28 @@ class InfixPlusParser():
 
             remaining_tokens = right_tokens[1]
 
+        # print(remaining_tokens)
         return ((IPToken.MUL, children), remaining_tokens)
     
     def parse_term(self, tokens : TokenList) -> IPTuple:
         if len(tokens) == 0:
+            print("Token list is empty.")
             return ((IPToken.TERM, []), [])
 
         first = tokens[0][0]
 
         if first in {IPLexToken.NUMBER, IPLexToken.TOKEN}:
-            return ((IPToken.TERM, tokens[0]), tokens[1:])
+            return ((IPToken.TERM, [tokens[0]]), tokens[1:])
                 
         for fn in (self.bracket_expr, self.unary_expr):
             try:
                 node = fn(tokens)
-                return ((IPToken.TERM, node[0]), node[1])
+                return ((IPToken.TERM, [node[0]]), node[1])
             except ValueError as err:
-                print(tokens)
+                # print(tokens)
                 print(err)
 
-        return ((IPToken.TERM, []), [])
+        return ((IPToken.TERM, []), tokens)
         # raise ValueError("No valid term found.")
 
     def bracket_expr(self, tokens : TokenList) -> IPTuple:
@@ -154,10 +164,11 @@ class InfixPlusParser():
         
         # check closing bracket
         if not len(remaining) > 0 or not remaining[0][0] == IPLexToken.CLOSE_BRACKET:
-            print(remaining)
+            # print(remaining)
             raise ValueError("Not a bracket expression.")
 
-        children = [IPLexToken.OPEN_BRACKET, expr[0], IPLexToken.CLOSE_BRACKET]
+        children = [tokens[0], expr[0], remaining[0]]
+        # print(children)
 
         return ((IPToken.BRACKET_EXPR, children),remaining[1:])
 
@@ -167,7 +178,7 @@ class InfixPlusParser():
             raise ValueError("Invalid unary expression.")
         
         unary = tokens[0]
-        expr = self.parse_expr(tokens[1:])
+        expr = self.parse_term(tokens[1:])
 
         children = [unary, expr[0]]
 
@@ -176,18 +187,111 @@ class InfixPlusParser():
     def parse(self, tokens):
         return self.parse_program(tokens)
     
-if __name__ == "__main__":
+    def prune(self, root : IPNode):
+        # eliminate nodes which resolve to empty expressions
+        children = []
+        tokens = 0
+        # print(root[0])
+        for child in root[1]:
+            child_tokens = 0
+            
+            if isinstance(child[0],IPLexToken):
+                child_tokens = 1
+                children.append(child)
+            
+            else:
+                pruned_child = self.prune(child)
+                child_tokens += pruned_child[1]
+            
+                if child_tokens > 0:
+                    children.append(pruned_child)
+
+            tokens += child_tokens
+
+        print(f"😎 {root[1]}")
+
+        new_node = (root[0], children)
+
+        return (new_node, tokens)
+        
+
+def parse_file(path):
     luthor = InfixPlusLexer()
     kal_el = InfixPlusParser()
+    
+    with open(path,'r') as f:
+        file = f.read()
+    
+    tokens = luthor.lex(file)
+    parse_tree = kal_el.parse(tokens)[0]
+    print(parse_tree)
+    ast = kal_el.prune(parse_tree)
+
+def test_term_blank(lexer,parser : InfixPlusParser):
+    token = parser.parse_term([])
+    print(token)
+
+def test_term_close(lexer,parser : InfixPlusParser):
+    lex_tok = [
+        (IPLexToken.CLOSE_BRACKET,")")
+    ]
+    token = parser.parse_term(lex_tok)
+    print(token)
+
+def test_term_complex(lexer,parser : InfixPlusParser):
+    lex_tok = [
+        (IPLexToken.NUMBER,"10"),
+        (IPLexToken.CLOSE_BRACKET,")")
+    ]
+    token = parser.parse_term(lex_tok)
+    print(token)
+
+def test_mul_term_only(lexer, parser : InfixPlusParser):
+    lex_tok = [
+        (IPLexToken.NUMBER,"10"),
+        (IPLexToken.CLOSE_BRACKET,")")
+    ]
+    token = parser.parse_mul(lex_tok)
+    print(token)
+
+def test_mul_norm(lexer, parser : InfixPlusParser):
+    lex_tok = [
+        (IPLexToken.NUMBER,"10"),
+        (IPLexToken.MULTIPLY,"*"),
+        (IPLexToken.NUMBER,"10")
+    ]
+    token = parser.parse_mul(lex_tok)
+    print(token)
+
+def run_tests():
+    luthor = InfixPlusLexer()
+    kal_el = InfixPlusParser()
+    tests = (
+        test_term_blank,
+        test_term_close,
+        test_term_complex,
+        test_mul_term_only,
+        test_mul_norm
+    )
+    
+    for test in tests:
+        try:
+            print(f"🔥 {test.__name__} 🔥")
+            test(luthor, kal_el)
+            luthor.reset()
+        except ValueError as err:
+            print(err)
+
+if __name__ == "__main__":
+    
 
     arg_parser = ArgumentParser(prog="Infix Plus Lexer")
     arg_parser.add_argument('-i', '--input',action='store')
+    arg_parser.add_argument('-t', '--test',action='store_true')
 
     args = arg_parser.parse_args(sys.argv[1:])
 
     if args.input:
-        with open(args.input,'r') as f:
-            file = f.read()
-        tokens = luthor.lex(file)
-        ast = kal_el.parse(tokens)
-        print(ast[0][1][8])
+        parse_file(args.input)
+    elif args.test:
+        run_tests()
