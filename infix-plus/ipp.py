@@ -98,7 +98,7 @@ class InfixPlusParser():
         # if len(remaining_tokens) == 1:
         #     raise ValueError("Invalid add expression.")
         
-        if len(remaining_tokens) > 0 and remaining_tokens[0][0] in {IPLexToken.PLUS, IPLexToken.MULTIPLY}:
+        if len(remaining_tokens) > 0 and remaining_tokens[0][0] in {IPLexToken.PLUS, IPLexToken.MINUS}:
             # if remaining_tokens[0][0] not in {IPLexToken.PLUS, IPLexToken.MINUS}:
             #     raise ValueError("Invalid add expression.")
             
