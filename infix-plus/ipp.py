@@ -2,6 +2,7 @@ from ipl import InfixPlusLexer, IPLexToken
 from enum import IntEnum, auto
 from argparse import ArgumentParser
 from typing import Iterable
+from collections import deque
 import json
 import sys
 
@@ -14,6 +15,17 @@ class IPToken(IntEnum):
     TERM = auto()
     BRACKET_EXPR = auto()
     UNARY_EXPR = auto()
+
+tokenMap = {
+    IPToken.PROGRAM: "PROGRAM",
+    IPToken.EXPR: "EXPR",
+    IPToken.ASSIGNMENT: "ASSIGN",
+    IPToken.ADD: "ADD",
+    IPToken.MUL: "MUL",
+    IPToken.TERM: "TERM",
+    IPToken.BRACKET_EXPR: "BRACKET",
+    IPToken.UNARY_EXPR: "UNARY"
+}
 
 IPNode = tuple[IPToken,list["IPNode"]]
 IPTuple = tuple[IPNode,list[IPLexToken]]
@@ -213,6 +225,57 @@ class InfixPlusParser():
         new_node = (root[0], children)
 
         return (new_node, tokens)
+    
+    def viz_node(self, node : IPNode) -> list[str]:
+        # print(node)
+
+        num = 0
+        lines = []
+        nodes = deque((node,))
+        # print(nodes)
+        while len(nodes) > 0:
+            cur = nodes.popleft()
+            # print(cur)
+            if isinstance(cur[0], IPToken):
+                label = tokenMap.get(cur[0])
+            elif isinstance(cur[0], IPLexToken):
+                label = cur[1]
+
+            lines.extend(
+                [
+                    f'n{num} ;',
+                    f'n{num} [label="{label}"] ;',
+                ]
+            )
+            if isinstance(cur[0], IPLexToken):
+                num += 1
+                continue
+
+            for child in cur[1]:
+                nodes.append(child)
+                child_num = num+len(nodes)
+                lines.extend([
+                    f"n{child_num} ;",
+                    f"n{num} -- n{child_num} ;"
+                ])
+            num += 1
+        return lines
+
+    def graphviz(self, node : IPNode, outPath : str):
+        lines = [
+            'graph fsm {',
+            'fontname="Roboto,Arial,sans-serif"',
+            'node [fontname="Roboto,Arial,sans-serif"]',
+            'node [shape=circle];'
+        ]
+        nodes = self.viz_node(node)
+        print(nodes)
+        lines.extend(nodes)
+        lines.append('}')
+
+        with open(outPath, "w") as f:
+            for ln in lines:
+                f.write(f"{ln}\n")
         
 
 def parse_file(path):
@@ -224,8 +287,11 @@ def parse_file(path):
     
     tokens = luthor.lex(file)
     parse_tree = kal_el.parse(tokens)[0]
-    print(parse_tree)
-    ast = kal_el.prune(parse_tree)
+
+    kal_el.graphviz(parse_tree, "parse-tree.gv")
+    # print(parse_tree)
+    # ast = kal_el.prune(parse_tree)
+    return parse_tree
 
 def test_term_blank(lexer,parser : InfixPlusParser):
     token = parser.parse_term([])
@@ -282,16 +348,19 @@ def run_tests():
         except ValueError as err:
             print(err)
 
+
+
 if __name__ == "__main__":
     
 
     arg_parser = ArgumentParser(prog="Infix Plus Lexer")
     arg_parser.add_argument('-i', '--input',action='store')
+    # arg_parser.add_argument('-v', '--viz',action='store')
     arg_parser.add_argument('-t', '--test',action='store_true')
 
     args = arg_parser.parse_args(sys.argv[1:])
 
     if args.input:
-        parse_file(args.input)
+        parsed = parse_file(args.input)
     elif args.test:
         run_tests()

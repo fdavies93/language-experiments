@@ -1,0 +1,3 @@
+# testing a normal expression and operator precedence
+10 + 10
+10 + 10 / 10 * 100 - 10
