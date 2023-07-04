@@ -1,7 +1,7 @@
 from ipl import InfixPlusLexer, IPLexToken
 from enum import IntEnum, auto
 from argparse import ArgumentParser
-from typing import Iterable
+from typing import Iterable, Union
 from collections import deque
 import json
 import sys
@@ -202,32 +202,22 @@ class InfixPlusParser():
         return self.parse_program(tokens)
     
     def prune(self, root : IPNode):
-        # eliminate nodes which resolve to empty expressions
-        children = []
-        tokens = 0
-        # print(root[0])
-        for child in root[1]:
-            child_tokens = 0
-            
-            if isinstance(child[0],IPLexToken):
-                child_tokens = 1
-                children.append(child)
-            
-            else:
-                pruned_child = self.prune(child)
-                child_tokens += pruned_child[1]
-            
-                if child_tokens > 0:
-                    children.append(pruned_child)
+        # eliminate nodes with only one child, 
+        # which is not a lex_token, or null
+        children = root[1]
+        if isinstance(root[0], IPToken) and root[0] == IPToken.BRACKET_EXPR:
+            children = [children[1]]
 
-            tokens += child_tokens
+        if isinstance(root[0], IPLexToken) or root[0] == IPToken.NULL:
+            return root
 
-        print(f"😎 {root[1]}")
+        children = list(map(lambda child : self.prune(child), children))
+        
+        if len(children) == 1:
+            return children[0]
+        
+        return (root[0], children)
 
-        new_node = (root[0], children)
-
-        return (new_node, tokens)
-    
     def viz_node(self, node : IPNode) -> list[str]:
         # print(node)
 
@@ -253,6 +243,7 @@ class InfixPlusParser():
                 num += 1
                 continue
 
+            print(f"🔥 {cur}")
             for child in cur[1]:
                 nodes.append(child)
                 child_num = num+len(nodes)
@@ -292,8 +283,9 @@ def parse_file(path):
 
     kal_el.graphviz(parse_tree, "parse-tree.gv")
     # print(parse_tree)
-    # ast = kal_el.prune(parse_tree)
-    return parse_tree
+    ast = kal_el.prune(parse_tree)
+    kal_el.graphviz(ast, "ast.gv")
+    return ast
 
 def test_term_blank(lexer,parser : InfixPlusParser):
     token = parser.parse_term([])
@@ -350,7 +342,43 @@ def run_tests():
         except ValueError as err:
             print(err)
 
-
+def evaluate(table : dict, node : Union[IPNode, IPLexToken]):
+    if isinstance(node[0], IPToken):
+        tok = node[0]
+        children = node[1]
+        if tok == IPToken.NULL:
+            return 0.0
+        elif tok == IPToken.ADD:
+            if children[1][0] == IPLexToken.PLUS:
+                return evaluate(table,children[0]) + evaluate(table,children[2])
+            else:
+                return evaluate(table,children[0]) - evaluate(table,children[2])
+        elif tok == IPToken.MUL:
+            if children[1][0] == IPLexToken.MULTIPLY:
+                return evaluate(table,children[0]) * evaluate(table,children[2])
+            else:
+                return evaluate(table,children[0]) / evaluate(table,children[2])
+        elif tok == IPToken.UNARY_EXPR:
+            # the only valid unary expr is - now
+            return evaluate(table,children[1]) * -1
+        elif tok == IPToken.ASSIGNMENT:
+            result = evaluate(table,children[2])
+            table[children[0][1]] = result
+            return result
+        elif tok == IPToken.PROGRAM:
+            results = []
+            for child in children:
+                results.append(evaluate(table,child))
+                
+            return results
+        
+    elif isinstance(node[0], IPLexToken):
+        cls = node[0]
+        token = node[1]
+        if cls == IPLexToken.TOKEN:
+            return table[token]
+        elif cls == IPLexToken.NUMBER:
+            return float(token)
 
 if __name__ == "__main__":
     
@@ -364,5 +392,8 @@ if __name__ == "__main__":
 
     if args.input:
         parsed = parse_file(args.input)
+        in_dict = {}
+        evald = evaluate(in_dict, parsed)
+        print(evald)
     elif args.test:
         run_tests()
